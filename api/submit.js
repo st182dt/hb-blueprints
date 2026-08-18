@@ -1,14 +1,12 @@
-// Basic in-memory store for Rate Limiting
 const rateLimitMap = new Map();
 const RATE_LIMIT_MS = 2 * 60 * 1000; // 2 minutes
 
 module.exports = async (req, res) => {
-  // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
-  // --- 1. RATE LIMITING (Based on IP Address) ---
+  // --- 1. RATE LIMITING ---
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
   const now = Date.now();
   
@@ -19,20 +17,19 @@ module.exports = async (req, res) => {
       return res.status(429).json({ error: `Please wait ${timeLeft} seconds before submitting again.` });
     }
   }
-  // Record the time of this submission
   rateLimitMap.set(ip, now);
 
-  // --- 2. GET DATA FROM FRONTEND ---
   const { author, title, type, desc, blueprint, thumbBase64, screensBase64 } = req.body;
 
   try {
-    // --- 3. UPLOAD IMAGES TO IMGBB ---
     const imgbbKey = process.env.IMGBB_API_KEY; 
+    const web3formsKey = process.env.WEB3FORMS_KEY; 
     
-    if (!imgbbKey) {
-       throw new Error("Server is missing IMGBB_API_KEY");
+    if (!imgbbKey || !web3formsKey) {
+       throw new Error("Server is missing API Keys in Vercel Environment Variables!");
     }
 
+    // Upload function
     const uploadToImgBB = async (base64Str) => {
       const formData = new URLSearchParams();
       formData.append("key", imgbbKey);
@@ -47,17 +44,18 @@ module.exports = async (req, res) => {
       return data.data.url;
     };
 
-    // Upload thumbnail
-    const thumbUrl = await uploadToImgBB(thumbBase64);
+    // --- FASTER UPLOAD: Do them all at the exact same time ---
+    // Start the thumbnail upload
+    const thumbPromise = uploadToImgBB(thumbBase64);
+    
+    // Start all screenshot uploads
+    const screenPromises = screensBase64.map(base64 => uploadToImgBB(base64));
+    
+    // Wait for all of them to finish simultaneously
+    const [thumbUrl, ...screenUrls] = await Promise.all([thumbPromise, ...screenPromises]);
 
-    // Upload screenshots
-    const screenUrls = [];
-    for (let i = 0; i < screensBase64.length; i++) {
-      const url = await uploadToImgBB(screensBase64[i]);
-      screenUrls.push(url);
-    }
 
-    // --- 4. ASSEMBLE EMAIL MESSAGE ---
+    // --- ASSEMBLE LUA EMAIL ---
     const buildId = "hb-999";
     const addedIn = Math.floor(Date.now() / 1000);
 
@@ -87,13 +85,7 @@ Thumbnail: ${thumbUrl}
       plainTextLua += `Screenshot ${i + 1}: ${url}\n`;
     });
 
-    // --- 5. SEND EMAIL VIA WEB3FORMS ---
-    const web3formsKey = process.env.WEB3FORMS_KEY; 
-    
-    if (!web3formsKey) {
-       throw new Error("Server is missing WEB3FORMS_KEY");
-    }
-
+    // --- SEND EMAIL ---
     const emailRes = await fetch("https://api.web3forms.com/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },

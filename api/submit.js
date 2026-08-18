@@ -2,7 +2,6 @@ const rateLimitMap = new Map();
 const RATE_LIMIT_MS = 2 * 60 * 1000; // 2 minutes
 
 module.exports = async (req, res) => {
-  // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
@@ -24,10 +23,9 @@ module.exports = async (req, res) => {
 
   try {
     const imgbbKey = process.env.IMGBB_API_KEY; 
-    const web3formsKey = process.env.WEB3FORMS_KEY; 
     
-    if (!imgbbKey || !web3formsKey) {
-       throw new Error("Server is missing IMGBB_API_KEY or WEB3FORMS_KEY in Vercel Environment Variables!");
+    if (!imgbbKey) {
+       throw new Error("Server is missing IMGBB_API_KEY in Vercel Environment Variables!");
     }
 
     // --- 2. UPLOAD TO IMGBB ---
@@ -89,48 +87,14 @@ Thumbnail: ${thumbUrl}
       plainTextLua += `Screenshot ${i + 1}: ${url}\n`;
     });
 
-    // --- 4. SEND EMAIL VIA WEB3FORMS ---
-    const origin = req.headers.origin || "https://hb-blueprints.vercel.app";
-
-    const emailRes = await fetch("https://api.web3forms.com/submit", {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json", 
-        "Accept": "application/json",
-        // Agressive Browser Spoofing Headers to bypass Cloudflare
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Origin": origin,
-        "Referer": origin + "/",
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "cross-site",
-        "Accept-Language": "en-US,en;q=0.9"
-      },
-      // Using JSON payload instead of Form Data as required by Web3Forms docs
-      body: JSON.stringify({
-        access_key: web3formsKey,
-        subject: `New Blueprint: ${title} by ${author}`,
-        from_name: "Home Bound Blueprints",
-        name: author,
-        message: plainTextLua
-      }),
+    // --- 4. RETURN DATA TO BROWSER ---
+    // We send the generated message back to the frontend so the browser can send the email.
+    res.status(200).json({ 
+      success: true, 
+      author: author,
+      title: title,
+      emailMessage: plainTextLua
     });
-
-    // Read the response safely
-    const emailText = await emailRes.text();
-    let emailData;
-    try {
-      emailData = JSON.parse(emailText);
-    } catch (err) {
-      throw new Error(`Cloudflare Web3Forms Block (${emailRes.status}). Ensure you aren't blocked by Web3Forms' free tier limitations. Response: ${emailText.substring(0, 80)}...`);
-    }
-
-    if (!emailData.success) {
-       throw new Error("Web3Forms Email Failed: " + (emailData.message || "Unknown error"));
-    }
-
-    // Success!
-    res.status(200).json({ success: true, message: "Blueprint submitted successfully!" });
 
   } catch (error) {
     console.error("Submission Error:", error);

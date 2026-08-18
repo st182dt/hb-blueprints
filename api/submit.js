@@ -31,7 +31,8 @@ module.exports = async (req, res) => {
 
     // Upload function
     const uploadToImgBB = async (base64Str) => {
-      const formData = new URLSearchParams();
+      // FIX: Use native FormData instead of URLSearchParams to prevent WAF blocks
+      const formData = new FormData();
       formData.append("key", imgbbKey);
       formData.append("image", base64Str);
       
@@ -39,21 +40,33 @@ module.exports = async (req, res) => {
         method: "POST",
         body: formData,
       });
-      const data = await response.json();
-      if (!data.success) throw new Error("Image Upload Failed");
+      
+      // FIX: Read as text first. If Cloudflare blocks us, it returns HTML. This catches it safely.
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error(`ImgBB API Blocked Request (Status ${response.status}). Response: ${text.substring(0, 80)}...`);
+      }
+
+      if (!data.success) throw new Error("Image Upload Failed: " + (data.error?.message || "Unknown error"));
       return data.data.url;
     };
 
-    // --- FASTER UPLOAD: Do them all at the exact same time ---
-    // Start the thumbnail upload
-    const thumbPromise = uploadToImgBB(thumbBase64);
+    // --- SEQUENTIAL UPLOAD ---
+    // FIX: Do NOT use Promise.all. Uploading 4 items simultaneously from Vercel triggers 
+    // ImgBB's Cloudflare anti-bot. We upload them one by one to stay under the radar.
+    const allImages = [thumbBase64, ...(screensBase64 || [])];
+    const uploadedUrls = [];
     
-    // Start all screenshot uploads
-    const screenPromises = screensBase64.map(base64 => uploadToImgBB(base64));
-    
-    // Wait for all of them to finish simultaneously
-    const [thumbUrl, ...screenUrls] = await Promise.all([thumbPromise, ...screenPromises]);
+    for (let i = 0; i < allImages.length; i++) {
+      const url = await uploadToImgBB(allImages[i]);
+      uploadedUrls.push(url);
+    }
 
+    const thumbUrl = uploadedUrls[0];
+    const screenUrls = uploadedUrls.slice(1);
 
     // --- ASSEMBLE LUA EMAIL ---
     const buildId = "hb-999";
@@ -98,14 +111,22 @@ Thumbnail: ${thumbUrl}
       }),
     });
 
-    const emailData = await emailRes.json();
-    if (!emailData.success) throw new Error("Web3Forms Email Failed");
+    // FIX: Read as text first for Web3Forms to catch "Payload Too Large" HTML errors
+    const emailText = await emailRes.text();
+    let emailData;
+    try {
+      emailData = JSON.parse(emailText);
+    } catch (err) {
+      throw new Error(`Web3Forms API Error (${emailRes.status}). Blueprint code might be too large! Response: ${emailText.substring(0, 80)}...`);
+    }
+
+    if (!emailData.success) throw new Error("Web3Forms Email Failed: " + (emailData.message || "Unknown error"));
 
     // Success!
     res.status(200).json({ success: true, message: "Blueprint submitted successfully!" });
 
   } catch (error) {
-    console.error(error);
+    console.error("Submission Error:", error);
     rateLimitMap.delete(ip); 
     res.status(500).json({ error: error.message || "An error occurred during submission." });
   }

@@ -273,9 +273,9 @@
 
       const canvas = cropper.getCroppedCanvas({ width, height });
       
-      // Convert Canvas directly to a base64 string
-      const base64Data = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-      const previewUrl = canvas.toDataURL('image/jpeg', 0.8);
+      // Changed to 0.6 quality to ensure it safely bypasses Vercel's 4.5MB upload limit
+      const base64Data = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
+      const previewUrl = canvas.toDataURL('image/jpeg', 0.6);
 
       if (cropTargetType === 'thumbnail') {
         thumbBase64 = base64Data;
@@ -355,7 +355,16 @@
           })
         });
 
-        const result = await response.json();
+        // We read it as TEXT first instead of JSON to prevent the ugly <!DOCTYPE error
+        const rawResponseText = await response.text();
+        let result;
+        
+        try {
+          result = JSON.parse(rawResponseText);
+        } catch (parseError) {
+          console.error("Server returned HTML instead of JSON:", rawResponseText);
+          throw new Error(`Server routing error (Status: ${response.status}). Ensure your "api" folder is deployed correctly on Vercel.`);
+        }
         
         if (!response.ok) {
           throw new Error(result.error || "Failed to submit.");

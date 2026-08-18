@@ -2,10 +2,10 @@
 const rateLimitMap = new Map();
 const RATE_LIMIT_MS = 2 * 60 * 1000; // 2 minutes
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   // Only allow POST requests
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
   // --- 1. RATE LIMITING (Based on IP Address) ---
@@ -27,18 +27,22 @@ export default async function handler(req, res) {
 
   try {
     // --- 3. UPLOAD IMAGES TO IMGBB ---
-    const imgbbKey = process.env.IMGBB_API_KEY; // Hidden variable!
+    const imgbbKey = process.env.IMGBB_API_KEY; 
     
+    if (!imgbbKey) {
+       throw new Error("Server is missing IMGBB_API_KEY");
+    }
+
     const uploadToImgBB = async (base64Str) => {
       const formData = new URLSearchParams();
       formData.append("key", imgbbKey);
       formData.append("image", base64Str);
       
-      const res = await fetch("https://api.imgbb.com/1/upload", {
+      const response = await fetch("https://api.imgbb.com/1/upload", {
         method: "POST",
         body: formData,
       });
-      const data = await res.json();
+      const data = await response.json();
       if (!data.success) throw new Error("Image Upload Failed");
       return data.data.url;
     };
@@ -84,8 +88,12 @@ Thumbnail: ${thumbUrl}
     });
 
     // --- 5. SEND EMAIL VIA WEB3FORMS ---
-    const web3formsKey = process.env.WEB3FORMS_KEY; // Hidden variable!
+    const web3formsKey = process.env.WEB3FORMS_KEY; 
     
+    if (!web3formsKey) {
+       throw new Error("Server is missing WEB3FORMS_KEY");
+    }
+
     const emailRes = await fetch("https://api.web3forms.com/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
@@ -106,8 +114,7 @@ Thumbnail: ${thumbUrl}
 
   } catch (error) {
     console.error(error);
-    // If it fails, remove the rate limit so they can try again immediately
     rateLimitMap.delete(ip); 
     res.status(500).json({ error: error.message || "An error occurred during submission." });
   }
-}
+};

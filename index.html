@@ -1,328 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Home Bound - Upload Blueprint</title>
-  
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
-
-  <style>
-    :root {
-      --bg-color: #121212;
-      --panel-bg: #1c1c1e;
-      --border-dark: #333333;
-      --border-light: #525252;
-      --text-main: #f3f4f6;
-      --text-muted: #9ca3af;
-      --accent-yellow: #fcd34d; 
-      --accent-hover: #fef08a;
-      --error-red: #f87171;
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Nunito', sans-serif; }
-
-    body {
-      color: var(--text-main);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      padding: 20px;
-      position: relative;
-    }
-
-    /* Clouds Background */
-    .clouds-bg { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; background: linear-gradient(180deg, #5ba5d8 0%, #a9d8f3 100%); overflow: hidden; }
-    .clouds-bg .cloud { position: absolute; background: radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 70%); border-radius: 50%; opacity: 0.8; animation: drift 40s infinite linear alternate; }
-    .cloud-1 { width: 80vw; height: 80vw; top: -20vh; left: -20vw; animation-duration: 60s; }
-    .cloud-2 { width: 100vw; height: 100vw; top: 30vh; right: -30vw; animation-duration: 90s; animation-direction: alternate-reverse; }
-    .cloud-3 { width: 70vw; height: 70vw; bottom: -20vh; left: 10vw; animation-duration: 75s; }
-    .cloud-4 { width: 60vw; height: 60vw; top: 10vh; left: 40vw; animation-duration: 85s; opacity: 0.5; }
-    @keyframes drift { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(3vw, -3vh) scale(1.05); } 100% { transform: translate(-2vw, 2vh) scale(0.95); } }
-
-    .addon-frame { background-color: var(--panel-bg); border: 1px solid var(--border-dark); border-top: 3px solid var(--accent-yellow); box-shadow: 0 15px 40px rgba(0,0,0,0.5); border-radius: 8px; width: 100%; max-width: 600px; padding: 24px; position: relative; }
-    .frame-title { color: var(--text-main); font-size: 1.5rem; font-weight: 700; text-align: center; margin-bottom: 20px; letter-spacing: 0.5px; border-bottom: 1px solid var(--border-dark); padding-bottom: 10px; }
-    .step-section { display: none; animation: fadeIn 0.3s ease; }
-    .step-section.active { display: block; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-    .form-group { margin-bottom: 20px; }
-    label { display: block; color: var(--text-main); margin-bottom: 8px; font-size: 0.95rem; font-weight: 600; }
-    input[type="text"], textarea, select { width: 100%; background: #090909; border: 1px solid var(--border-dark); color: var(--text-main); padding: 12px; border-radius: 6px; outline: none; font-size: 0.95rem; transition: all 0.2s; }
-    textarea { resize: vertical; min-height: 80px; }
-    input[type="text"]:focus, textarea:focus, select:focus { border-color: var(--accent-yellow); box-shadow: 0 0 5px rgba(252, 211, 77, 0.2); background: #111; }
-    .checkbox-group { display: flex; align-items: flex-start; gap: 12px; background: #111; padding: 15px; border: 1px solid var(--border-dark); border-radius: 6px; }
-    .checkbox-group label { margin-bottom: 0; color: var(--text-main); font-size: 0.9rem; line-height: 1.4; font-weight: 400; cursor: pointer; }
-    .checkbox-group input[type="checkbox"] { margin-top: 3px; cursor: pointer; accent-color: var(--accent-yellow); }
-    .char-count { font-size: 0.8rem; color: var(--text-muted); text-align: right; display: block; margin-top: 4px; }
-    .btn { background-color: #111; color: var(--accent-yellow); border: 1px solid var(--accent-yellow); padding: 12px 20px; font-weight: 600; font-size: 1rem; border-radius: 6px; cursor: pointer; transition: all 0.2s; width: 100%; margin-top: 10px; }
-    .btn:hover:not(:disabled) { background-color: var(--accent-yellow); color: #111; }
-    .btn:disabled { background-color: #1a1a1a; border-color: #333; color: #555; cursor: not-allowed; }
-    .nav-buttons { display: flex; gap: 12px; margin-top: 25px; }
-    .upload-box { border: 2px dashed var(--border-dark); padding: 24px; text-align: center; background: #111; cursor: pointer; border-radius: 6px; transition: all 0.2s; color: var(--text-muted); }
-    .upload-box:hover { border-color: var(--accent-yellow); color: var(--accent-yellow); background: #151515; }
-    .image-preview-container { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
-    .img-preview { position: relative; width: 100px; height: 100px; border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden; }
-    .img-preview img { width: 100%; height: 100%; object-fit: cover; }
-    .img-preview.screenshot { width: 160px; height: 90px; }
-    .remove-btn { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.75); color: var(--error-red); border: none; cursor: pointer; font-weight: bold; padding: 2px 8px; border-radius: 4px; transition: background 0.2s; }
-    .remove-btn:hover { background: rgba(0,0,0,0.95); }
-
-    /* Modal */
-    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; padding: 20px; }
-    .modal-content { background: var(--panel-bg); border: 1px solid var(--border-light); border-top: 3px solid var(--accent-yellow); padding: 24px; max-width: 800px; width: 100%; border-radius: 8px; box-shadow: 0 15px 30px rgba(0,0,0,0.6); }
-    .cropper-wrapper { width: 100%; height: 400px; background: #000; margin-bottom: 20px; border-radius: 6px; overflow: hidden; }
-    .achievement-toast { display: none; position: fixed; bottom: 30px; background: #0f0f0f; border: 1px solid var(--accent-yellow); border-radius: 8px; padding: 16px 24px; box-shadow: 0 5px 25px rgba(252, 211, 77, 0.15); z-index: 2000; text-align: center; }
-    .achievement-toast .title { color: var(--text-main); font-weight: 700; margin-bottom: 6px; font-size: 1.1rem; }
-    .achievement-toast .subtitle { color: var(--accent-yellow); font-size: 0.95rem; }
-    .error-msg { color: var(--error-red); font-size: 0.85rem; margin-top: 6px; display: none; }
-  </style>
-</head>
-<body>
-  <div class="clouds-bg">
-    <div class="cloud cloud-1"></div>
-    <div class="cloud cloud-2"></div>
-    <div class="cloud cloud-3"></div>
-    <div class="cloud cloud-4"></div>
-  </div>
-
-  <div class="addon-frame">
-    <div class="frame-title">Upload Blueprint</div>
-    <form id="blueprintForm">
-      
-      <!-- STEP 1 -->
-      <div class="step-section active" id="step1">
-        <div class="form-group">
-          <label>Author Name</label>
-          <input type="text" id="authorName" placeholder="Your Character Name..." required />
-        </div>
-        <div class="form-group checkbox-group">
-          <input type="checkbox" id="termsCheck" required />
-          <label for="termsCheck">This is my build and I agree to share it in the Home Bound's Blueprints AddOn.</label>
-        </div>
-        <button type="button" class="btn" onclick="nextStep(1)">Continue</button>
-      </div>
-
-      <!-- STEP 2 -->
-      <div class="step-section" id="step2">
-        <div class="form-group">
-          <label>Title of the Build</label>
-          <input type="text" id="buildTitle" placeholder="e.g., Cozy Tavern" required />
-        </div>
-        <div class="form-group">
-          <label>Build Type</label>
-          <select id="buildType" required>
-            <option value="" disabled selected>Select a Type...</option>
-            <option value="House">House</option>
-            <option value="Exterior">Exterior</option>
-            <option value="Interior">Interior</option>
-            <option value="Room">Room</option>
-          </select>
-        </div>
-        <div class="form-group" style="margin-bottom: 0;">
-          <label>Description (Optional)</label>
-          <textarea id="buildDesc" maxlength="120" placeholder="Brief description..."></textarea>
-          <span class="char-count" style="margin-bottom: 4px;"><span id="descCount">0</span>/120</span>
-        </div>
-        <div class="form-group">
-          <label>Blueprint Code</label>
-          <input type="text" id="blueprintCode" placeholder="Blueprint code of the build" required />
-        </div>
-        <div class="nav-buttons">
-          <button type="button" class="btn" onclick="prevStep(2)">Back</button>
-          <button type="button" class="btn" onclick="nextStep(2)">Continue</button>
-        </div>
-      </div>
-
-      <!-- STEP 3 -->
-      <div class="step-section" id="step3">
-        <div class="form-group">
-          <label>Thumbnail Image (Required)</label>
-          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">Must be at least 256x256px.</p>
-          <input type="file" id="thumbInput" accept="image/*" style="display:none;" />
-          <div class="upload-box" onclick="document.getElementById('thumbInput').click()">Click to upload thumbnail</div>
-          <div class="error-msg" id="thumbError">Image is too small! Must be at least 256x256.</div>
-          <div class="image-preview-container" id="thumbPreviewBox"></div>
-        </div>
-
-        <div class="form-group">
-          <label>Screenshots (1 Required, Max 3)</label>
-          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">Must be at least 960x540px.</p>
-          <input type="file" id="screenInput" accept="image/*" style="display:none;" />
-          <div class="upload-box" id="screenUploadBox" onclick="document.getElementById('screenInput').click()">
-            Click to upload screenshot (<span id="screenCountText">0</span>/3)
-          </div>
-          <div class="error-msg" id="screenError">Image is too small! Must be at least 960x540.</div>
-          <div class="image-preview-container" id="screenPreviewBox"></div>
-        </div>
-        <div class="nav-buttons">
-          <button type="button" class="btn" onclick="prevStep(3)">Back</button>
-          <button type="submit" class="btn" id="submitBtn">Submit blueprint</button>
-        </div>
-        <div id="statusText" style="text-align: center; margin-top: 15px; font-size: 0.95rem; color: var(--accent-yellow);"></div>
-      </div>
-    </form>
-  </div>
-
-  <div class="modal" id="cropModal">
-    <div class="modal-content">
-      <div class="frame-title" id="cropTitle">Adjust image</div>
-      <div class="cropper-wrapper">
-        <img id="cropperImage" src="" style="max-width: 100%; display: block;">
-      </div>
-      <div class="nav-buttons">
-        <button type="button" class="btn" onclick="closeCropper()">Cancel</button>
-        <button type="button" class="btn" id="confirmCropBtn">Confirm crop</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="achievement-toast" id="achievementToast">
-    <div class="title" id="achieveTitle">Blueprint Submitted</div>
-    <div class="subtitle" id="achieveSub">Achievement earned by <span id="achieveName">Player</span></div>
-  </div>
-
-  <script>
-    let currentStep = 1;
-    let thumbBase64 = null;
-    let screensBase64 = [];
-    let cropper = null;
-    let cropTargetType = ''; 
-
-    function nextStep(step) {
-      if (step === 1) {
-        if(!document.getElementById('authorName').value.trim()) return alert("Author name is required!");
-        if(!document.getElementById('termsCheck').checked) return alert("You must agree to the terms.");
-      }
-      if (step === 2) {
-        if(!document.getElementById('buildTitle').value.trim()) return alert("Title is required!");
-        if(!document.getElementById('buildType').value) return alert("Select a build type!");
-        if(!document.getElementById('blueprintCode').value.trim()) return alert("Blueprint code is required!");
-      }
-      document.getElementById(`step${step}`).classList.remove('active');
-      document.getElementById(`step${step + 1}`).classList.add('active');
-      currentStep++;
-    }
-
-    function prevStep(step) {
-      document.getElementById(`step${step}`).classList.remove('active');
-      document.getElementById(`step${step - 1}`).classList.add('active');
-      currentStep--;
-    }
-
-    document.getElementById('buildDesc').addEventListener('input', function() {
-      document.getElementById('descCount').innerText = this.value.length;
-    });
-
-    document.getElementById('thumbInput').addEventListener('change', function(e) {
-      handleFileSelection(e.target.files[0], 'thumbnail', 256, 256, document.getElementById('thumbError'));
-      this.value = ''; 
-    });
-
-    document.getElementById('screenInput').addEventListener('change', function(e) {
-      if (screensBase64.length >= 3) return;
-      handleFileSelection(e.target.files[0], 'screenshot', 960, 540, document.getElementById('screenError'));
-      this.value = ''; 
-    });
-
-    function handleFileSelection(file, type, minWidth, minHeight, errorElement) {
-      if (!file) return;
-      errorElement.style.display = 'none';
-      const reader = new FileReader();
-      reader.onload = function(event) {
-        const img = new Image();
-        img.onload = function() {
-          if (img.width < minWidth || img.height < minHeight) {
-            errorElement.style.display = 'block';
-            return;
-          }
-          openCropper(img.src, type);
-        };
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
-
-    function openCropper(imageSrc, type) {
-      cropTargetType = type;
-      const modal = document.getElementById('cropModal');
-      const imageElement = document.getElementById('cropperImage');
-      document.getElementById('cropTitle').innerText = type === 'thumbnail' ? 'Adjust thumbnail (256x256)' : 'Adjust screenshot (960x540)';
-      imageElement.src = imageSrc;
-      modal.style.display = 'flex';
-      if (cropper) cropper.destroy();
-      cropper = new Cropper(imageElement, {
-        aspectRatio: type === 'thumbnail' ? 1 : (16 / 9), viewMode: 1, autoCropArea: 1, background: false, zoomable: false
-      });
-    }
-
-    function closeCropper() {
-      document.getElementById('cropModal').style.display = 'none';
-      if (cropper) cropper.destroy();
-      cropper = null;
-    }
-
-    document.getElementById('confirmCropBtn').addEventListener('click', function() {
-      if (!cropper) return;
-      const width = cropTargetType === 'thumbnail' ? 256 : 960;
-      const height = cropTargetType === 'thumbnail' ? 256 : 540;
-
-      const canvas = cropper.getCroppedCanvas({ width, height });
-      
-      const base64Data = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
-      const previewUrl = canvas.toDataURL('image/jpeg', 0.6);
-
-      if (cropTargetType === 'thumbnail') {
-        thumbBase64 = base64Data;
-        renderThumbnailPreview(previewUrl);
-      } else {
-        screensBase64.push({ preview: previewUrl, raw: base64Data });
-        renderScreenshotPreviews();
-      }
-      closeCropper();
-    });
-
-    function renderThumbnailPreview(url) {
-      const box = document.getElementById('thumbPreviewBox');
-      box.innerHTML = `
-        <div class="img-preview">
-          <img src="${url}" />
-          <button type="button" class="remove-btn" onclick="removeThumbnail()">X</button>
-        </div>
-      `;
-    }
-
-    function removeThumbnail() {
-      thumbBase64 = null;
-      document.getElementById('thumbPreviewBox').innerHTML = '';
-    }
-
-    function renderScreenshotPreviews() {
-      const box = document.getElementById('screenPreviewBox');
-      box.innerHTML = '';
-      screensBase64.forEach((item, index) => {
-        box.innerHTML += `
-          <div class="img-preview screenshot">
-            <img src="${item.preview}" />
-            <button type="button" class="remove-btn" onclick="removeScreenshot(${index})">X</button>
-          </div>
-        `;
-      });
-      document.getElementById('screenCountText').innerText = screensBase64.length;
-      document.getElementById('screenUploadBox').style.display = screensBase64.length >= 3 ? 'none' : 'block';
-    }
-
-    function removeScreenshot(index) {
-      screensBase64.splice(index, 1);
-      renderScreenshotPreviews();
-    }
-
-
-    // --- FORM SUBMISSION ---
+// --- FORM SUBMISSION ---
     document.getElementById('blueprintForm').addEventListener('submit', async function(e) {
       e.preventDefault();
 
@@ -332,7 +8,7 @@
       const submitBtn = document.getElementById('submitBtn');
       const statusText = document.getElementById('statusText');
       submitBtn.disabled = true;
-      statusText.innerText = "Transmitting to server... (Sending Ravens)";
+      statusText.innerText = "Processing images on server... (Please wait)";
 
       try {
         const author = document.getElementById('authorName').value.trim();
@@ -342,6 +18,7 @@
         const desc = document.getElementById('buildDesc').value.trim();
         const blueprint = document.getElementById('blueprintCode').value.trim();
 
+        // 1. SEND TO VERCEL TO UPLOAD IMAGES
         const response = await fetch('/api/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -354,16 +31,39 @@
 
         const rawResponseText = await response.text();
         let result;
-        
         try {
           result = JSON.parse(rawResponseText);
         } catch (parseError) {
-          console.error("Server returned HTML instead of JSON:", rawResponseText);
-          throw new Error(`Server routing error (Status: ${response.status}). Ensure your "api" folder is deployed correctly on Vercel.`);
+          throw new Error(`Server routing error (Status: ${response.status}).`);
         }
         
-        if (!response.ok) {
-          throw new Error(result.error || "Failed to submit.");
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || "Failed to process images.");
+        }
+
+        statusText.innerText = "Transmitting email... (Sending Ravens)";
+
+        // 2. SEND EMAIL DIRECTLY FROM THE BROWSER (Bypasses Cloudflare)
+        // Note: It is 100% safe to put your Web3Forms access key here.
+        const emailResponse = await fetch("https://api.web3forms.com/submit", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify({
+            access_key: "4e2995cf-da1f-4d73-a8a7-651af52f5750", // <-- YOUR PUBLIC KEY GOES HERE
+            subject: `New Blueprint: ${result.title} by ${result.author}`,
+            from_name: "Home Bound Blueprints",
+            name: result.author,
+            message: result.emailMessage
+          })
+        });
+
+        const emailResult = await emailResponse.json();
+        
+        if (!emailResult.success) {
+          throw new Error(emailResult.message || "Failed to send email via Web3Forms");
         }
 
         // UI Reset on Success
@@ -387,13 +87,3 @@
         submitBtn.disabled = false;
       }
     });
-
-    function showAchievement(authorName) {
-      const toast = document.getElementById('achievementToast');
-      document.getElementById('achieveName').innerText = authorName;
-      toast.style.display = 'block';
-      setTimeout(() => { toast.style.display = 'none'; }, 5000);
-    }
-  </script>
-</body>
-</html>

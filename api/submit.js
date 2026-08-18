@@ -29,9 +29,8 @@ module.exports = async (req, res) => {
        throw new Error("Server is missing API Keys in Vercel Environment Variables!");
     }
 
-    // Upload function
+    // --- UPLOAD TO IMGBB ---
     const uploadToImgBB = async (base64Str) => {
-      // FIX: Use native FormData instead of URLSearchParams to prevent WAF blocks
       const formData = new FormData();
       formData.append("key", imgbbKey);
       formData.append("image", base64Str);
@@ -41,7 +40,6 @@ module.exports = async (req, res) => {
         body: formData,
       });
       
-      // FIX: Read as text first. If Cloudflare blocks us, it returns HTML. This catches it safely.
       const text = await response.text();
       let data;
       try {
@@ -54,9 +52,7 @@ module.exports = async (req, res) => {
       return data.data.url;
     };
 
-    // --- SEQUENTIAL UPLOAD ---
-    // FIX: Do NOT use Promise.all. Uploading 4 items simultaneously from Vercel triggers 
-    // ImgBB's Cloudflare anti-bot. We upload them one by one to stay under the radar.
+    // Sequential Upload to bypass Cloudflare rate-limits
     const allImages = [thumbBase64, ...(screensBase64 || [])];
     const uploadedUrls = [];
     
@@ -98,32 +94,35 @@ Thumbnail: ${thumbUrl}
       plainTextLua += `Screenshot ${i + 1}: ${url}\n`;
     });
 
-    // --- SEND EMAIL ---
-    // --- SEND EMAIL ---
+    // --- SEND EMAIL TO WEB3FORMS ---
+    // FIX: Convert from JSON to standard Form-Urlencoded. This prevents the LUA code
+    // from triggering Cloudflare's malicious code injection filters.
+    const emailParams = new URLSearchParams();
+    emailParams.append("access_key", web3formsKey);
+    emailParams.append("subject", `New Blueprint: ${title} by ${author}`);
+    emailParams.append("from_name", "Home Bound Blueprints");
+    emailParams.append("name", author);
+    emailParams.append("message", plainTextLua);
+
     const emailRes = await fetch("https://api.web3forms.com/submit", {
       method: "POST",
       headers: { 
-        "Content-Type": "application/json", 
+        "Content-Type": "application/x-www-form-urlencoded", 
         "Accept": "application/json",
-        // FIX: Add a fake User-Agent to bypass Cloudflare's bot protection
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        // Tell Cloudflare the request originates from your domain
+        "Origin": req.headers.origin || "https://hb-blueprints.vercel.app"
       },
-      body: JSON.stringify({
-        access_key: web3formsKey,
-        subject: `New Blueprint: ${title} by ${author}`,
-        from_name: "Home Bound Blueprints",
-        name: author,
-        message: plainTextLua,
-      }),
+      body: emailParams.toString(),
     });
 
-    // FIX: Read as text first for Web3Forms to catch "Payload Too Large" HTML errors
+    // Read the response safely
     const emailText = await emailRes.text();
     let emailData;
     try {
       emailData = JSON.parse(emailText);
     } catch (err) {
-      throw new Error(`Web3Forms API Error (${emailRes.status}). Blueprint code might be too large! Response: ${emailText.substring(0, 80)}...`);
+      // Updated the error text so it's accurate this time
+      throw new Error(`Web3Forms Cloudflare Block (${emailRes.status}). Response: ${emailText.substring(0, 80)}...`);
     }
 
     if (!emailData.success) throw new Error("Web3Forms Email Failed: " + (emailData.message || "Unknown error"));

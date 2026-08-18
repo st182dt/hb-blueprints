@@ -99,9 +99,15 @@ Thumbnail: ${thumbUrl}
     });
 
     // --- SEND EMAIL ---
+    // --- SEND EMAIL ---
     const emailRes = await fetch("https://api.web3forms.com/submit", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      headers: { 
+        "Content-Type": "application/json", 
+        "Accept": "application/json",
+        // FIX: Add a fake User-Agent to bypass Cloudflare's bot protection
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      },
       body: JSON.stringify({
         access_key: web3formsKey,
         subject: `New Blueprint: ${title} by ${author}`,

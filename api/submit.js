@@ -23,10 +23,9 @@ module.exports = async (req, res) => {
 
   try {
     const imgbbKey = process.env.IMGBB_API_KEY; 
-    const web3formsKey = process.env.WEB3FORMS_KEY; 
     
-    if (!imgbbKey || !web3formsKey) {
-       throw new Error("Server is missing API Keys in Vercel Environment Variables!");
+    if (!imgbbKey) {
+       throw new Error("Server is missing ImgBB API Key in Vercel Environment Variables!");
     }
 
     // --- UPLOAD TO IMGBB ---
@@ -57,11 +56,13 @@ module.exports = async (req, res) => {
     const uploadedUrls = [];
     
     for (let i = 0; i < allImages.length; i++) {
+      // Skip if somehow empty
+      if (!allImages[i]) continue;
       const url = await uploadToImgBB(allImages[i]);
       uploadedUrls.push(url);
     }
 
-    const thumbUrl = uploadedUrls[0];
+    const thumbUrl = uploadedUrls[0] || "";
     const screenUrls = uploadedUrls.slice(1);
 
     // --- ASSEMBLE LUA EMAIL ---
@@ -94,41 +95,14 @@ Thumbnail: ${thumbUrl}
       plainTextLua += `Screenshot ${i + 1}: ${url}\n`;
     });
 
-    // --- SEND EMAIL TO WEB3FORMS ---
-    // FIX: Convert from JSON to standard Form-Urlencoded. This prevents the LUA code
-    // from triggering Cloudflare's malicious code injection filters.
-    const emailParams = new URLSearchParams();
-    emailParams.append("access_key", web3formsKey);
-    emailParams.append("subject", `New Blueprint: ${title} by ${author}`);
-    emailParams.append("from_name", "Home Bound Blueprints");
-    emailParams.append("name", author);
-    emailParams.append("message", plainTextLua);
-
-    const emailRes = await fetch("https://api.web3forms.com/submit", {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/x-www-form-urlencoded", 
-        "Accept": "application/json",
-        // Tell Cloudflare the request originates from your domain
-        "Origin": req.headers.origin || "https://hb-blueprints.vercel.app"
-      },
-      body: emailParams.toString(),
+    // --- RETURN TO FRONTEND ---
+    // Instead of sending the email here, we pass the built string back to the browser.
+    res.status(200).json({ 
+      success: true, 
+      author: author,
+      title: title,
+      emailMessage: plainTextLua 
     });
-
-    // Read the response safely
-    const emailText = await emailRes.text();
-    let emailData;
-    try {
-      emailData = JSON.parse(emailText);
-    } catch (err) {
-      // Updated the error text so it's accurate this time
-      throw new Error(`Web3Forms Cloudflare Block (${emailRes.status}). Response: ${emailText.substring(0, 80)}...`);
-    }
-
-    if (!emailData.success) throw new Error("Web3Forms Email Failed: " + (emailData.message || "Unknown error"));
-
-    // Success!
-    res.status(200).json({ success: true, message: "Blueprint submitted successfully!" });
 
   } catch (error) {
     console.error("Submission Error:", error);

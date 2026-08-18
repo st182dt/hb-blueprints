@@ -2,6 +2,7 @@ const rateLimitMap = new Map();
 const RATE_LIMIT_MS = 2 * 60 * 1000; // 2 minutes
 
 module.exports = async (req, res) => {
+  // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
@@ -26,10 +27,10 @@ module.exports = async (req, res) => {
     const web3formsKey = process.env.WEB3FORMS_KEY; 
     
     if (!imgbbKey || !web3formsKey) {
-       throw new Error("Server is missing API Keys in Vercel Environment Variables!");
+       throw new Error("Server is missing IMGBB_API_KEY or WEB3FORMS_KEY in Vercel Environment Variables!");
     }
 
-    // --- UPLOAD TO IMGBB ---
+    // --- 2. UPLOAD TO IMGBB ---
     const uploadToImgBB = async (base64Str) => {
       const formData = new FormData();
       formData.append("key", imgbbKey);
@@ -40,19 +41,12 @@ module.exports = async (req, res) => {
         body: formData,
       });
       
-      const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        throw new Error(`ImgBB API Blocked Request (Status ${response.status}). Response: ${text.substring(0, 80)}...`);
-      }
-
+      const data = await response.json();
       if (!data.success) throw new Error("Image Upload Failed: " + (data.error?.message || "Unknown error"));
       return data.data.url;
     };
 
-    // Sequential Upload to bypass Cloudflare rate-limits
+    // Sequential Upload to bypass rate-limits
     const allImages = [thumbBase64, ...(screensBase64 || [])];
     const uploadedUrls = [];
     
@@ -65,7 +59,7 @@ module.exports = async (req, res) => {
     const thumbUrl = uploadedUrls[0] || "";
     const screenUrls = uploadedUrls.slice(1);
 
-    // --- ASSEMBLE LUA EMAIL ---
+    // --- 3. ASSEMBLE LUA EMAIL ---
     const buildId = "hb-999";
     const addedIn = Math.floor(Date.now() / 1000);
 
@@ -95,18 +89,24 @@ Thumbnail: ${thumbUrl}
       plainTextLua += `Screenshot ${i + 1}: ${url}\n`;
     });
 
-    // --- SEND EMAIL TO WEB3FORMS (Server-Side Fix) ---
-    // We send this as JSON and apply a fake User-Agent to bypass Cloudflare's Bot Challenge
+    // --- 4. SEND EMAIL VIA WEB3FORMS ---
+    const origin = req.headers.origin || "https://hb-blueprints.vercel.app";
+
     const emailRes = await fetch("https://api.web3forms.com/submit", {
       method: "POST",
       headers: { 
         "Content-Type": "application/json", 
         "Accept": "application/json",
-        // The magic headers to bypass the "Just a moment..." block:
+        // Agressive Browser Spoofing Headers to bypass Cloudflare
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Origin": req.headers.origin || "https://hb-blueprints.vercel.app",
-        "Referer": req.headers.referer || "https://hb-blueprints.vercel.app/"
+        "Origin": origin,
+        "Referer": origin + "/",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "cross-site",
+        "Accept-Language": "en-US,en;q=0.9"
       },
+      // Using JSON payload instead of Form Data as required by Web3Forms docs
       body: JSON.stringify({
         access_key: web3formsKey,
         subject: `New Blueprint: ${title} by ${author}`,
@@ -122,10 +122,12 @@ Thumbnail: ${thumbUrl}
     try {
       emailData = JSON.parse(emailText);
     } catch (err) {
-      throw new Error(`Web3Forms Cloudflare Block (${emailRes.status}). Response: ${emailText.substring(0, 80)}...`);
+      throw new Error(`Cloudflare Web3Forms Block (${emailRes.status}). Ensure you aren't blocked by Web3Forms' free tier limitations. Response: ${emailText.substring(0, 80)}...`);
     }
 
-    if (!emailData.success) throw new Error("Web3Forms Email Failed: " + (emailData.message || "Unknown error"));
+    if (!emailData.success) {
+       throw new Error("Web3Forms Email Failed: " + (emailData.message || "Unknown error"));
+    }
 
     // Success!
     res.status(200).json({ success: true, message: "Blueprint submitted successfully!" });

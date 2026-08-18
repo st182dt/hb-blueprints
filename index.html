@@ -273,7 +273,6 @@
 
       const canvas = cropper.getCroppedCanvas({ width, height });
       
-      // Changed to 0.6 quality to ensure it safely bypasses Vercel's 4.5MB upload limit
       const base64Data = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
       const previewUrl = canvas.toDataURL('image/jpeg', 0.6);
 
@@ -323,7 +322,7 @@
     }
 
 
-    // --- FORM SUBMISSION (TALKING TO OUR OWN BACKEND NOW) ---
+    // --- FORM SUBMISSION ---
     document.getElementById('blueprintForm').addEventListener('submit', async function(e) {
       e.preventDefault();
 
@@ -336,7 +335,6 @@
       statusText.innerText = "Transmitting to server... (Sending Ravens)";
 
       try {
-        // Collect Data
         const author = document.getElementById('authorName').value.trim();
         const title = document.getElementById('buildTitle').value.trim();
         const rawType = document.getElementById('buildType').value;
@@ -344,7 +342,6 @@
         const desc = document.getElementById('buildDesc').value.trim();
         const blueprint = document.getElementById('blueprintCode').value.trim();
 
-        // Send everything to OUR secure backend api route
         const response = await fetch('/api/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -355,7 +352,6 @@
           })
         });
 
-        // We read it as TEXT first instead of JSON to prevent the ugly <!DOCTYPE error
         const rawResponseText = await response.text();
         let result;
         
